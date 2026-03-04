@@ -12,29 +12,29 @@ Agent Engine 上で LangGraph エージェントからリモート MCP サーバ
 
 ### 2.1 構成
 
-```
-┌─────────────────────────────────────────────────┐
-│              Agent Engine (Cloud)                │
-│  ┌───────────────────────────────────────────┐  │
-│  │         LanggraphAgent.query()            │  │
-│  │         → runnable.invoke() [同期]         │  │
-│  │  ┌─────────────────────────────────────┐  │  │
-│  │  │  create_react_agent (LangGraph)     │  │  │
-│  │  │  ┌───────────────────────────────┐  │  │  │
-│  │  │  │ langchain_mcp_adapters        │  │  │  │
-│  │  │  │ StructuredTool(coroutine=...) │  │  │  │
-│  │  │  │ func=None  ← ★ 課題の原因     │  │  │  │
-│  │  │  └───────────────────────────────┘  │  │  │
-│  │  └─────────────────────────────────────┘  │  │
-│  └───────────────────────────────────────────┘  │
-│                      ↕ MCP Protocol              │
-│         (Streamable HTTP / SSE)                  │
-└─────────────────────────────────────────────────┘
-                       ↕
-┌─────────────────────────────────────────────────┐
-│         リモート MCP サーバー (Cloud Run)          │
-│         (Snowflake データアクセス等)               │
-└─────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph AE["Agent Engine (Cloud)"]
+        direction TB
+        Q["LanggraphAgent.query()"]
+        I["runnable.invoke() — 同期"]
+        subgraph LG["create_react_agent (LangGraph)"]
+            direction TB
+            subgraph MCA["langchain_mcp_adapters"]
+                ST["StructuredTool<br/>coroutine = call_tool (async)<br/>func = None ← 課題の原因"]
+            end
+        end
+        Q --> I --> LG
+    end
+
+    subgraph MCP["リモート MCP サーバー (Cloud Run)"]
+        SF["Snowflake データアクセス等"]
+    end
+
+    AE -- "MCP Protocol<br/>(Streamable HTTP / SSE)" --> MCP
+
+    style ST fill:#fff0f0,stroke:#ff6666
+    style MCA fill:#fff8f0,stroke:#ffaa44
 ```
 
 ### 2.2 課題の再現
@@ -381,42 +381,7 @@ ToolMessage:
 
 ---
 
-## 6. Agent Engine への要望事項
-
-### 6.1 現状の課題
-
-| 項目 | 現状 |
-|------|------|
-| `LanggraphAgent.query()` | `runnable.invoke()` (同期) のみ |
-| `LanggraphAgent.stream_query()` | `runnable.stream()` (同期) のみ |
-| `langchain_mcp_adapters` | `StructuredTool(coroutine=..., func=None)` (async-only) |
-| 結果 | MCP ツール呼び出し時に `NotImplementedError` |
-
-### 6.2 想定される対応案
-
-以下のいずれかの対応があると、Workaround なしで LangGraph + MCP の連携が可能になると考えます。
-
-**(A) Agent Engine 側: `runnable.ainvoke()` の追加サポート**
-
-`LanggraphAgent.query()` 内で `ainvoke()`（非同期 invoke）を使用するオプションを提供する。
-LangGraph のグラフは `ainvoke()` をサポートしているため、非同期呼び出しに切り替えることで async-only ツールも動作する。
-
-**(B) Agent Engine 側: 内部での async→sync ブリッジの組み込み**
-
-ADK Runner が行っているように、Agent Engine の内部で自動的に async→sync 変換を行う仕組みを組み込む。
-
-**(C) langchain\_mcp\_adapters 側: sync `func` の自動生成**
-
-`langchain_mcp_adapters` が `StructuredTool` を生成する際に、`func`（同期ラッパー）も自動的に設定する。
-これにより、同期/非同期どちらの環境でも利用可能なツールが生成される。
-
-### 6.3 補足: 追加の入力形式変換について
-
-`LanggraphAgent.query()` は文字列入力を `{"input": "..."}` に変換しますが、`langgraph.prebuilt.create_react_agent` は `{"messages": [("user", "...")]}` を期待します。本 Workaround ではこの不一致も `RunnableLambda` で吸収していますが、Agent Engine 側での標準的なサポートがあると利便性が向上します。
-
----
-
-## 7. 使用バージョン
+## 6. 使用バージョン
 
 | パッケージ | バージョン |
 |-----------|-----------|
@@ -430,7 +395,7 @@ ADK Runner が行っているように、Agent Engine の内部で自動的に a
 
 ---
 
-## 8. 参照ソースコード
+## 7. 参照ソースコード
 
 | ファイル | 行番号 | 説明 |
 |---------|--------|------|
@@ -440,7 +405,7 @@ ADK Runner が行っているように、Agent Engine の内部で自動的に a
 
 ---
 
-## 9. リポジトリ構成
+## 8. リポジトリ構成
 
 ```
 langgraph_mcp_agent_engine/
