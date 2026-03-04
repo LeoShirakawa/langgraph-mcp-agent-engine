@@ -74,15 +74,15 @@ sequenceDiagram
     participant AE as Agent Engine<br/>(同期環境)
     participant Tool as StructuredTool<br/>(sync_func 追加済み)
     participant Thread as 別スレッド
-    participant Loop as 新規 event loop
+    participant EvLoop as 新規 event loop
     participant MCP as MCP サーバー
 
     AE->>Tool: tool._run() [同期]
     Tool->>Thread: threading.Thread 起動
-    Thread->>Loop: asyncio.new_event_loop()
-    Loop->>MCP: await coroutine(**kwargs)
-    MCP-->>Loop: 結果
-    Loop-->>Thread: run_until_complete 完了
+    Thread->>EvLoop: asyncio.new_event_loop()
+    EvLoop->>MCP: await coroutine(**kwargs)
+    MCP-->>EvLoop: 結果
+    EvLoop-->>Thread: run_until_complete 完了
     Thread-->>Tool: Future.result() で取得
     Tool-->>AE: 結果を返却
 ```
