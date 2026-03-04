@@ -17,16 +17,16 @@ graph LR
 
 ```mermaid
 graph TB
+    subgraph C3["Agent Engine (LanggraphAgent)"]
+        T3["query() は runnable.invoke() のみ\n= 同期呼び出し"]
+    end
+
     subgraph C1["langchain_mcp_adapters"]
-        T1["StructuredTool(<br/>  coroutine=call_tool,<br/>  func=None<br/>)"]
+        T1["StructuredTool を生成\ncoroutine = call_tool\nfunc = None"]
     end
 
-    subgraph C2["langchain_core"]
-        T2["_run(): func が None →<br/>NotImplementedError"]
-    end
-
-    subgraph C3["Agent Engine"]
-        T3["LanggraphAgent.query()<br/>→ runnable.invoke() 同期のみ"]
+    subgraph C2["langchain_core (StructuredTool)"]
+        T2["_run() で func が None\n→ NotImplementedError"]
     end
 
     T3 -- "同期 invoke" --> T2
